@@ -7,6 +7,8 @@
 	import flash.utils.getTimer;
 	import flash.utils.Endian;
 	import flash.events.TimerEvent;
+	import flip.filters.IFlFilter;
+	import flash.geom.Point;
 	
 	public class Flip extends Bitmap
 	{
@@ -33,11 +35,25 @@
 		/**
 		*	Screen buffer
 		*/
+		private var _screen : BitmapData;
+		/**
+		*	Previous frame buffer
+		*/
 		private var _buffer : BitmapData;
+		/**
+		*	Tells wether to update the screen
+		*/
 		private var _drawFlag : Boolean;
+		/**
+		*	Contains all screen filters
+		*/
+		private var _filters : Vector.<IFlFilter>;
 		
+		/**
+		*	Used to keep the machine running at 60Hz
+		*/
 		private var _timer : Timer;
-		private const FRAME_RATE : uint	= 120;
+		private const FRAME_RATE : uint	= 60;
 		private var _period : Number = 1000 / FRAME_RATE;
 		private var _beforeTime : int;
 		private var _afterTime : int;
@@ -127,7 +143,9 @@
 			
 			_timer = new Timer(_period,1);
 			
+			_screen = new BitmapData(64,32,false,0xFF000000);
 			_buffer = new BitmapData(64,32,false,0xFF000000);
+			_filters = new Vector.<IFlFilter>();
 			
 			// Only create instances once to save memory
 			_memory = new Vector.<uint>(4096,true);
@@ -166,6 +184,7 @@
 			}
 			
 			_buffer.fillRect(_buffer.rect, 0xFF000000);
+			_screen.fillRect(_buffer.rect, 0xFF000000);
 		}
 		
 		/**
@@ -199,8 +218,6 @@
 				cycle();
 				_excess -= _period;
 			}
-			
-			//trace(_key);
 		}
 		
 		/**
@@ -281,18 +298,38 @@
 		}
 		
 		/**
+		*	Adds a filter to the filter stack
+		*/
+		public function addFilter ( filter : IFlFilter ) : void
+		{
+			_filters.push( filter );
+		}
+		
+		/**
 		*	Draws the VRAM to the buffer
 		*/
 		private function draw () : void
 		{
-			// Clear buffer
-			_buffer.fillRect(_buffer.rect,0xFF000000);
-			for(var i:uint = 0; i < _vram.length; i++)
+			var i:uint;
+			// Copy this screen to back buffer
+			_buffer.copyPixels(_screen,_screen.rect,new Point(0,0));
+			
+			// Clear screen
+			_screen.fillRect(_screen.rect,0xFF000000);
+			// Draw from VRAM
+			for(i = 0; i < _vram.length; i++)
 			{
 				if(_vram[i])
-					_buffer.setPixel(i % 64, i / 64, 0xFFFFFFFF);
+					_screen.setPixel(i % 64, i / 64, 0xFFFFFFFF);
 					
 			}
+			
+			// Update filters if any
+			for(i = 0; i < _filters.length; i++)
+			{
+				_filters[i].render(_screen,_buffer);
+			}
+			
 			_drawFlag = false;
 		}
 		

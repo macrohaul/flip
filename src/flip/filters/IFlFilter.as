@@ -1,9 +1,10 @@
 ﻿package flip.filters
 {
+	import flash.display.BitmapData;
 	
 	public interface IFlFilter
 	{
 		
-		public function render ( screen : BitmapData, buffer : BitmapData ) : void;
+		function render ( screen : BitmapData, buffer : BitmapData ) : void;
 	}
 }
