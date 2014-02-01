@@ -197,6 +197,12 @@
 			
 			// Execute opcode
 			_instructionTable[ _opcode >> 12 ]();
+			
+			// Update timers
+			if(_delayTimer > 0)
+				_delayTimer--;
+			if(_soundTimer > 0)
+				_soundTimer--;
 		}
 		
 		/**
@@ -309,7 +315,7 @@
 		private const _instructionTable : Array = 
 		[
 		 cpuSpecial,	cpuJump,	cpuCallSub,	cpuSkipEq,	cpuSkipNeq,	cpuSkipEqReg,	cpuSetReg,	cpuAddReg,
-		 cpuArithmetic,	cpuSkipNeqReg,	cpuSetRegIndex,	cpuJumpReg,	cpuSetRand,	cpuDrawSprite,	nop,	nop
+		 cpuArithmetic,	cpuSkipNeqReg,	cpuSetRegIndex,	cpuJumpReg,	cpuSetRand,	cpuDrawSprite,	cpuInput,	cpuMisc
 		];
 		
 		/**
@@ -599,5 +605,52 @@
 			
 			_drawFlag = true;
 		}
-	}
-}
+		
+		/**
+		*	0xE0XX
+		*	Handles input logic
+		*/
+		private function cpuInput () : void
+		{
+			switch( _opcode & 0x00FF )
+			{
+				case 0x9E:
+					if( _key[ V[(_opcode & 0x0F00) >> 8] ] )	// If the key stored in VX is pressed
+						_cp += 2;
+					break;
+				case 0xA1:
+					if( !_key[ V[(_opcode & 0x0F00) >> 8] ] )	// If the key stored in VX isn't pressed
+						_cp += 2;
+					break;
+			}
+		}
+		
+		/**
+		*	0xF000
+		*	Miscellaneous but important CPU operations
+		*/
+		private function cpuMisc () : void
+		{
+			switch( _opcode & 0x00FF )
+			{
+				case 0x07:	// Sets VX to the value of the delay timer
+					V[(_opcode & 0x0F00) >> 8] = _delayTimer;
+					break;
+				case 0x15:	// Sets the delay timer to VX
+					_delayTimer = V[(_opcode & 0x0F00) >> 8];
+					break;
+				case 0x18:	// Sets the sound timer to VX
+					_soundTimer = V[(_opcode & 0x0F00) >> 8];
+					break;
+				case 0x1E:	// Add VX to I
+					I += V[(_opcode & 0x0F00) >> 8];
+					I %= 256;
+					break;
+				case 
+				default:
+					break;
+			}
+		}
+		
+	}	// End Class
+}	// End Package
