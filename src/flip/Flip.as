@@ -10,7 +10,7 @@
 	
 	public class Flip extends Bitmap
 	{
-		[Embed(source="../assets/BREAKOUT",mimeType="application/octet-stream")]
+		[Embed(source="../assets/PONG",mimeType="application/octet-stream")]
 		public static var DEFAULT_APP : Class;
 		
 		/**
@@ -20,7 +20,7 @@
 		private var _drawFlag : Boolean;
 		
 		private var _timer : Timer;
-		private const FRAME_RATE : uint	= 60;
+		private const FRAME_RATE : uint	= 120;
 		private var _period : Number = 1000 / FRAME_RATE;
 		private var _beforeTime : int;
 		private var _afterTime : int;
@@ -183,7 +183,7 @@
 				_excess -= _period;
 			}
 			
-			trace(_key);
+			//trace(_key);
 		}
 		
 		/**
@@ -571,11 +571,11 @@
 		
 		/**
 		*	0xCXNN
-		*	Sets VX to a random number (and NN?)
+		*	Sets VX to a random number plus NN
 		*/
 		private function cpuSetRand () : void
 		{
-			V[(_opcode & 0x0F00) >> 8] = Math.round( Math.random() * 255 );
+			V[(_opcode & 0x0F00) >> 8] = (( Math.random() * 255 ) + (_opcode & 0x00FF)) % 256;
 		}
 		
 		/**
@@ -649,6 +649,18 @@
 				case 0x1E:	// Add VX to I
 					I += V[(_opcode & 0x0F00) >> 8];
 					I %= 256;
+					break;
+				case 0x55:	// Copies V0 to VX to memory starting at adress I
+					for(var i:uint = 0; i < (_opcode & 0x0F00) >> 8; i++)
+					{
+						_memory[I + i] = V[i];
+					}
+					break;
+				case 0x65:	// Fills V0 to VX with values from memory starting at address I
+					for(var i:uint = 0; i < (_opcode & 0x0F00) >> 8; i++)
+					{
+						V[i] = _memory[I + i];
+					}
 					break;
 				default:
 					break;
