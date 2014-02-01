@@ -20,7 +20,7 @@
 		private var _drawFlag : Boolean;
 		
 		private var _timer : Timer;
-		private const FRAME_RATE : uint	= 1;
+		private const FRAME_RATE : uint	= 60;
 		private var _period : Number = 1000 / FRAME_RATE;
 		private var _beforeTime : int;
 		private var _afterTime : int;
@@ -155,8 +155,6 @@
 			_opcode = _memory[ _pc ] << 8 | _memory[ _pc + 1 ];
 			_pc += 2;
 			
-			trace(_opcode.toString(16));
-			
 			// Execute opcode
 			_instructionTable[ _opcode >> 12 ]();
 		}
@@ -169,7 +167,6 @@
 			init();
 			
 			var data : ByteArray = new program();
-			data.endian = Endian.BIG_ENDIAN;
 			data.position = 0;
 			
 			// Copy program to memory
@@ -254,7 +251,7 @@
 		private const _instructionTable : Array = 
 		[
 		 cpuSpecial,	cpuJump,	cpuCallSub,	cpuSkipEq,	cpuSkipNeq,	cpuSkipEqReg,	cpuSetReg,	cpuAddReg,
-		 cpuArithmetic,	cpuSkipNeqReg,	cpuSetRegIndex,	cpuJumpReg,	nop,	cpuDrawSprite,	nop,	nop
+		 cpuArithmetic,	cpuSkipNeqReg,	cpuSetRegIndex,	cpuJumpReg,	cpuSetRand,	cpuDrawSprite,	nop,	nop
 		];
 		
 		/**
@@ -262,8 +259,8 @@
 		*/
 		private const _arithmeticTable : Array =
 		[
-		 nop,	nop,	nop,	nop,	nop,	nop,	nop,	nop,
-		 nop,	nop,	nop,	nop,	nop,	nop,	nop,	nop
+		 cpuSwitchReg,	cpuOrReg,	cpuAndReg,	cpuXorReg,	cpuAddRegCarry,	cpuSubRegCarry,	cpuShiftRegR,	cpuRevSubReg,
+		 nop,	nop,	nop,	nop,	nop,	nop,	cpuShiftRegL,	nop
 		];
 		
 		/**
@@ -304,7 +301,8 @@
 		*/
 		private function cpuReturnSub () : void
 		{
-			_pc = _stack[ _sp-- ];	// Set program counter back to saved position
+			_sp--;
+			_pc = _stack[ _sp ];	// Set program counter back to saved position
 		}
 		
 		/**
@@ -334,7 +332,7 @@
 		private function cpuSkipEq () : void
 		{
 			if( V[ (_opcode & 0x0F00) >> 8 ] == (_opcode & 0x00FF) )
-				_pc += 4;
+				_pc += 2;
 		}
 		
 		/**
@@ -344,7 +342,7 @@
 		private function cpuSkipNeq () : void
 		{
 			if( V[ (_opcode & 0x0F00) >> 8 ] != (_opcode & 0x00FF) )
-				_pc += 4;
+				_pc += 2;
 		}
 		
 		/**
@@ -354,7 +352,7 @@
 		private function cpuSkipEqReg () : void
 		{
 			if( V[ (_opcode & 0x0F00) >> 8 ] == V[ (_opcode & 0x00F0) >> 4 ] )
-				_pc += 4;
+				_pc += 2;
 		}
 		
 		/**
@@ -377,13 +375,114 @@
 		}
 		
 		/**
+		*	0x8XY0
+		*	Set VX to value of VY
+		*/
+		private function cpuSwitchReg () : void
+		{
+			V[(_opcode & 0x0F00) >> 8] = V[(_opcode & 0x00F0) >> 4];
+		}
+		
+		/**
+		*	0x8XY1
+		*	Set VX to value of VX or VY
+		*/
+		private function cpuOrReg () : void
+		{
+			V[(_opcode & 0x0F00) >> 8] = V[(_opcode & 0x0F00) >> 8] | V[(_opcode & 0x00F0) >> 4];
+		}
+		
+		/**
+		*	0x8XY2
+		*	Set VX to value of VX and VY
+		*/
+		private function cpuAndReg () : void
+		{
+			V[(_opcode & 0x0F00) >> 8] = V[(_opcode & 0x0F00) >> 8] & V[(_opcode & 0x00F0) >> 4];
+		}
+		
+		/**
+		*	0x8XY3
+		*	Set VX to value of VX xor VY
+		*/
+		private function cpuXorReg () : void
+		{
+			V[(_opcode & 0x0F00) >> 8] = V[(_opcode & 0x0F00) >> 8] ^ V[(_opcode & 0x00F0) >> 4];
+		}
+		
+		/**
+		*	0x8XY4
+		*	Adds VX to VY. If the result is above 256, VF is set to 1, otherwise 0
+		*/
+		private function cpuAddRegCarry () : void
+		{
+			V[0xF] = 0;
+			V[(_opcode & 0x0F00) >> 8] += V[(_opcode & 0x00F0) >> 4];
+			if( V[(_opcode & 0x0F00) >> 8] >= 256 )
+			{
+				V[(_opcode & 0x0F00) >> 8] %= 256;
+				V[0xF] = 1;
+			}
+		}
+		
+		/**
+		*	0x8XY5
+		*	Subtract VY from VX. VF is 0 if there is a borrow, else 1
+		*/
+		private function cpuSubRegCarry () : void
+		{
+			V[0xF] = 1;
+			V[(_opcode & 0x0F00) >> 8] -= V[(_opcode & 0x00F0) >> 4];
+			if( V[(_opcode & 0x0F00) >> 8] >= 256 )
+			{
+				V[(_opcode & 0x0F00) >> 8] %= 256;
+				V[0xF] = 0;
+			}
+		}
+		
+		/**
+		*	0x8X06
+		*	Shift VX by one. Set VF to least significant bit before shift
+		*/
+		private function cpuShiftRegR () : void
+		{
+			V[0xF] = V[(_opcode & 0x0F00) >> 8] & 0x000F;
+			V[(_opcode & 0x0F00) >> 8] = V[(_opcode & 0x0F00) >> 8] >> 1;
+		}
+		
+		/**
+		*	0x8XY7
+		*	Sets VX to VY minus VX. VF is set to 0 when there's a borrow, and 1 when there isn't.
+		*/
+		private function cpuRevSubReg () : void
+		{
+			V[0xF] = 1;
+			V[(_opcode & 0x0F00) >> 8] = V[(_opcode & 0x00F0) >> 4] - V[(_opcode & 0x0F00) >> 8];
+			if( V[(_opcode & 0x0F00) >> 8] >= 256 )
+			{
+				V[(_opcode & 0x0F00) >> 8] %= 256;
+				V[0xF] = 0;
+			}
+		}
+		
+		/**
+		*	0x8X0E
+		*	Shift VX left by one. Set VF to most significant bit before shift
+		*/
+		private function cpuShiftRegL () : void
+		{
+			V[0xF] = (V[(_opcode & 0x0F00) >> 8] & 0xF000) >> 12;
+			V[(_opcode & 0x0F00) >> 8] = ( V[(_opcode & 0x0F00) >> 8] << 1 ) & 0xFFFF;
+		}
+		
+		/**
 		*	0x9XY0
 		*	Skip the next instruction if VX doesn't equal VY
 		*/
 		private function cpuSkipNeqReg () : void
 		{
 			if( V[ (_opcode & 0x0F00) >> 8 ] != V[ (_opcode & 0x00F0) >> 4 ] )
-				_pc += 4;
+				_pc += 2;
 		}
 		
 		/**
@@ -402,6 +501,15 @@
 		private function cpuJumpReg () : void
 		{
 			_pc = ( (_opcode & 0x0FFF) + V[0] ) % 256;
+		}
+		
+		/**
+		*	0xCXNN
+		*	Sets VX to a random number (and NN?)
+		*/
+		private function cpuSetRand () : void
+		{
+			V[(_opcode & 0x0F00) >> 8] = Math.round( Math.random() * 255 );
 		}
 		
 		/**
@@ -425,7 +533,7 @@
 					{
 						if( _vram[ (x + xl) + ((y + yl) * 64) ] == 1 )	// Collision detection
 							V[0xF] = 1;
-						_vram[ (x + xl) + ((y + yl) * 64) ] != _vram[ (x + xl) + ((y + yl) * 64) ];	// Flip the pixel
+						_vram[ (x + xl) + ((y + yl) * 64) ] = !_vram[ (x + xl) + ((y + yl) * 64) ];	// Flip the pixel
 					}
 				}
 			}
