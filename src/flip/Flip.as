@@ -12,8 +12,11 @@
 	
 	public class Flip extends Bitmap
 	{
-		[Embed(source="../assets/BREAKOUT",mimeType="application/octet-stream")]
+		[Embed(source="../assets/BLITZ",mimeType="application/octet-stream")]
 		public static var DEFAULT_APP : Class;
+		
+		public static const BG_COLOR : int = 0xFF102010;
+		public static const FG_COLOR : int = 0xFFDFFFDF;
 		
 		public static const KEY_0 : uint = 0;
 		public static const KEY_1 : uint = 1;
@@ -62,14 +65,14 @@
 		private var _overSleepTime : uint;
 		private var _excess : uint;
 		
-		private var _curCycle : uint;
+		public var output : String;
 		
 		/////////////////////////////////////////////////////////////////////// Machine related variables
 		
 		/**
 		*	Current opcode
 		*/
-		private var _opcode : uint;
+		public var _opcode : uint;
 		/**
 		*	Machine memory
 		*/
@@ -77,15 +80,15 @@
 		/**
 		*	Program (or memory) counter
 		*/
-		private var _pc : uint;
+		public var _pc : uint;
 		/**
 		*	CPU register
 		*/
-		private var V : Vector.<uint>;
+		public var V : Vector.<uint>;
 		/**
 		*	Register index
 		*/
-		private var I : uint;
+		public var I : uint;
 		/**
 		*	System delay timer
 		*/
@@ -143,8 +146,8 @@
 			
 			_timer = new Timer(_period,1);
 			
-			_screen = new BitmapData(64,32,false,0xFF000000);
-			_buffer = new BitmapData(64,32,false,0xFF000000);
+			_screen = new BitmapData(64,32,false,BG_COLOR);
+			_buffer = new BitmapData(64,32,false,BG_COLOR);
 			_filters = new Vector.<IFlFilter>();
 			
 			// Only create instances once to save memory
@@ -154,7 +157,7 @@
 			_vram = new Vector.<Boolean>(2048,true);
 			_key = new Vector.<Boolean>(16,true);
 			
-			super(_buffer);
+			super(_screen);
 		}
 		
 		/**
@@ -163,11 +166,10 @@
 		private function init () : void
 		{
 			_drawFlag = false;
-			_curCycle = 0;
 			
 			_pc		= 0x200;	// Program counter begins at 0x200
 			_opcode	= 0			// reset opcode
-			I		= 0;		// reset register index
+			I		= 0x200;		// reset register index
 			_sp		= 0;		// reset stack pointer
 			
 			// Reset all machine memory
@@ -177,14 +179,16 @@
 			_vram.forEach( setFalse );
 			_key.forEach( setFalse );
 			
+			_delayTimer = _soundTimer = 0;
+			
 			// Load fontset
-			for(var i:uint = 0; i < 80; i++)
+			for(var i:uint = 0; i < _fontset.length; i++)
 			{
 				_memory[i] = _fontset[i];
 			}
 			
-			_buffer.fillRect(_buffer.rect, 0xFF000000);
-			_screen.fillRect(_buffer.rect, 0xFF000000);
+			_buffer.fillRect(_buffer.rect, BG_COLOR);
+			_screen.fillRect(_buffer.rect, BG_COLOR);
 		}
 		
 		/**
@@ -225,10 +229,11 @@
 		*/
 		private function cycle () : void
 		{
-			_curCycle++;
+			output = "";
 			
 			// Fetch opcode
 			_opcode = _memory[ _pc ] << 8 | _memory[ _pc + 1 ];
+			
 			_pc += 2;
 			
 			// Execute opcode
@@ -239,12 +244,18 @@
 				_delayTimer--;
 			if(_soundTimer > 0)
 				_soundTimer--;
+				
+			if(_drawFlag)
+				draw();
+				
+			V.forEach( bytify );
+			_memory.forEach( bytify );
 		}
 		
 		/**
 		*	Loads a Chip-8 program into memory
 		*/
-		public function load ( program:Class ) : void
+		public function load ( program:Class, autoPlay : Boolean = true ) : void
 		{
 			init();
 			
@@ -258,7 +269,8 @@
 			}
 			
 			// Run the program
-			start();
+			if(autoPlay)
+				start();
 		}
 		
 		/**
@@ -277,6 +289,14 @@
 		{
 			_timer.removeEventListener(TimerEvent.TIMER, update);
 			_timer.stop();
+		}
+		
+		/**
+		*	Step the emulator one cycle forward
+		*/
+		public function step () : void
+		{
+			cycle();
 		}
 		
 		/**
@@ -317,12 +337,12 @@
 			_buffer.copyPixels(_screen,_screen.rect,new Point(0,0));
 			
 			// Clear screen
-			_screen.fillRect(_screen.rect,0xFF000000);
+			_screen.fillRect(_screen.rect,BG_COLOR);
 			// Draw from VRAM
 			for(i = 0; i < _vram.length; i++)
 			{
 				if(_vram[i])
-					_screen.setPixel(i % 64, i / 64, 0xFFFFFFFF);
+					_screen.setPixel(i % 64, i / 64, FG_COLOR);
 					
 			}
 			
@@ -357,9 +377,14 @@
 		*	A callback function used for
 		*	clearing/resetting vectors
 		*/
-		private function setFalse ( item:uint, index:int, vector:Vector.<Boolean> ) : void
+		private function setFalse ( item:Boolean, index:int, vector:Vector.<Boolean> ) : void
 		{
 			vector[index] = false;
+		}
+		
+		private function bytify ( item:uint, index:int, vector:Vector.<uint> ) : void
+		{
+			vector[index] %= 256;
 		}
 		
 		//////////////////////////////////////////////////////////////////////////////////////////////
@@ -400,6 +425,7 @@
 		*/
 		private function nop () : void
 		{
+			trace("nop");
 		}
 		
 		/**
@@ -424,7 +450,8 @@
 		*/
 		private function cpuReturnSub () : void
 		{
-			_pc = _stack[ _sp - 1 ];	// Set program counter back to saved position
+			_sp--;
+			_pc = _stack[ _sp ];	// Set program counter back to saved position
 		}
 		
 		/**
@@ -434,6 +461,8 @@
 		private function cpuJump () : void
 		{
 			_pc = _opcode & 0x0FFF;
+			
+			output = "jump to " + _pc.toString(16);
 		}
 		
 		/**
@@ -446,6 +475,8 @@
 			_sp++;					// Increase so we don't overwrite the stack
 			_sp %= 16;
 			_pc = _opcode & 0x0FFF;	// Set the program counter to subroutine adress
+			
+			output = "call sub " + _pc.toString(16);
 		}
 		
 		/**
@@ -456,6 +487,7 @@
 		{
 			if( V[ (_opcode & 0x0F00) >> 8 ] == (_opcode & 0x00FF) )
 				_pc += 2;
+			output = "skip if V"+((_opcode & 0x0F00) >> 8).toString(16)+" eq " + (_opcode & 0x00FF).toString(16) + " = " + ( V[ (_opcode & 0x0F00) >> 8 ] == (_opcode & 0x00FF) );
 		}
 		
 		/**
@@ -485,6 +517,8 @@
 		private function cpuSetReg () : void
 		{
 			V[ (_opcode & 0x0F00) >> 8 ] = _opcode & 0x00FF;
+			
+			output = "set V" + ((_opcode & 0x0F00) >> 8).toString(16) + " = " + V[ (_opcode & 0x0F00) >> 8 ].toString(16);
 		}
 		
 		/**
@@ -494,7 +528,8 @@
 		private function cpuAddReg () : void
 		{
 			V[ (_opcode & 0x0F00) >> 8 ] += _opcode & 0x00FF;
-			V[ (_opcode & 0x0F00) >> 8 ] %= 256;	// To keep it true to the byte yo
+			output = "add " + (_opcode & 0x00FF).toString(16) + " to V"+ ((_opcode & 0x0F00) >> 8) +" = " + V[ (_opcode & 0x0F00) >> 8 ].toString(16);
+			//V[ (_opcode & 0x0F00) >> 8 ] %= 256;	// To keep it true to the byte yo
 		}
 		
 		/**
@@ -512,7 +547,7 @@
 		*/
 		private function cpuOrReg () : void
 		{
-			V[(_opcode & 0x0F00) >> 8] = V[(_opcode & 0x0F00) >> 8] | V[(_opcode & 0x00F0) >> 4];
+			V[(_opcode & 0x0F00) >> 8] |= V[(_opcode & 0x00F0) >> 4];
 		}
 		
 		/**
@@ -521,7 +556,7 @@
 		*/
 		private function cpuAndReg () : void
 		{
-			V[(_opcode & 0x0F00) >> 8] = V[(_opcode & 0x0F00) >> 8] & V[(_opcode & 0x00F0) >> 4];
+			V[(_opcode & 0x0F00) >> 8] &= V[(_opcode & 0x00F0) >> 4];
 		}
 		
 		/**
@@ -530,7 +565,7 @@
 		*/
 		private function cpuXorReg () : void
 		{
-			V[(_opcode & 0x0F00) >> 8] = V[(_opcode & 0x0F00) >> 8] ^ V[(_opcode & 0x00F0) >> 4];
+			V[(_opcode & 0x0F00) >> 8] ^= V[(_opcode & 0x00F0) >> 4];
 		}
 		
 		/**
@@ -539,13 +574,23 @@
 		*/
 		private function cpuAddRegCarry () : void
 		{
-			V[0xF] = 0;
+			/*V[0xF] = 0;
 			V[(_opcode & 0x0F00) >> 8] += V[(_opcode & 0x00F0) >> 4];
 			if( V[(_opcode & 0x0F00) >> 8] >= 256 )
 			{
 				V[(_opcode & 0x0F00) >> 8] %= 256;
 				V[0xF] = 1;
+			}*/
+			if( V[(_opcode & 0x00F0) >> 4] > (0xFF - V[(_opcode & 0x0F00) >> 8]) )
+			{
+				V[0xF] = 1; //carry
 			}
+			else 
+			{
+				V[0xF] = 0;		
+			}
+			V[(_opcode & 0x0F00) >> 8] += V[(_opcode & 0x00F0) >> 4];
+			//V[(_opcode & 0x0F00) >> 8] %= 256;
 		}
 		
 		/**
@@ -554,13 +599,22 @@
 		*/
 		private function cpuSubRegCarry () : void
 		{
-			V[0xF] = 1;
+			/*V[0xF] = 1;
 			V[(_opcode & 0x0F00) >> 8] -= V[(_opcode & 0x00F0) >> 4];
 			if( V[(_opcode & 0x0F00) >> 8] >= 256 )
 			{
 				V[(_opcode & 0x0F00) >> 8] %= 256;
 				V[0xF] = 0;
+			}*/
+			if( V[(_opcode & 0x00F0) >> 4] > V[(_opcode & 0x0F00) >> 8] )
+			{
+				V[0xF] = 0; //carry
 			}
+			else 
+			{
+				V[0xF] = 1;		
+			}
+			V[(_opcode & 0x0F00) >> 8] -= V[(_opcode & 0x00F0) >> 4];
 		}
 		
 		/**
@@ -569,7 +623,7 @@
 		*/
 		private function cpuShiftRegR () : void
 		{
-			V[0xF] = V[(_opcode & 0x0F00) >> 8] & 0x000F;
+			V[0xF] = V[(_opcode & 0x0F00) >> 8] & 0x1;
 			V[(_opcode & 0x0F00) >> 8] = V[(_opcode & 0x0F00) >> 8] >> 1;
 		}
 		
@@ -579,13 +633,15 @@
 		*/
 		private function cpuRevSubReg () : void
 		{
-			V[0xF] = 1;
-			V[(_opcode & 0x0F00) >> 8] = V[(_opcode & 0x00F0) >> 4] - V[(_opcode & 0x0F00) >> 8];
-			if( V[(_opcode & 0x0F00) >> 8] >= 256 )
+			if( V[(_opcode & 0x0F00) >> 8] > V[(_opcode & 0x00F0) >> 4] )
 			{
-				V[(_opcode & 0x0F00) >> 8] %= 256;
 				V[0xF] = 0;
 			}
+			else
+			{
+				V[0xF] = 1;
+			}
+			V[(_opcode & 0x0F00) >> 8] = V[(_opcode & 0x00F0) >> 4] - V[(_opcode & 0x0F00) >> 8];
 		}
 		
 		/**
@@ -594,7 +650,7 @@
 		*/
 		private function cpuShiftRegL () : void
 		{
-			V[0xF] = (V[(_opcode & 0x0F00) >> 8] & 0xF000) >> 12;
+			V[0xF] = V[(_opcode & 0x0F00) >> 8] >> 7;
 			V[(_opcode & 0x0F00) >> 8] = ( V[(_opcode & 0x0F00) >> 8] << 1 ) & 0xFFFF;
 		}
 		
@@ -615,6 +671,8 @@
 		private function cpuSetRegIndex () : void
 		{
 			I = _opcode & 0x0FFF;
+			
+			output = "set I = " + I.toString(16);
 		}
 		
 		/**
@@ -623,16 +681,16 @@
 		*/
 		private function cpuJumpReg () : void
 		{
-			_pc = ( (_opcode & 0x0FFF) + V[0] ) % 256;
+			_pc = (_opcode & 0x0FFF) + V[0];
 		}
 		
 		/**
 		*	0xCXNN
-		*	Sets VX to a random number plus NN
+		*	Sets VX to a random number AND NN
 		*/
 		private function cpuSetRand () : void
 		{
-			V[(_opcode & 0x0F00) >> 8] = (( Math.random() * 255 ) + (_opcode & 0x00FF)) % 256;
+			V[(_opcode & 0x0F00) >> 8] = (( Math.random() * 255 ) & (_opcode & 0x00FF)) % 256;
 		}
 		
 		/**
@@ -665,6 +723,8 @@
 			}
 			
 			_drawFlag = true;
+			
+			output = "draw 8x" + h + " at " + x + "," + y;
 		}
 		
 		/**
@@ -683,6 +743,9 @@
 					if( !_key[ V[(_opcode & 0x0F00) >> 8] ] )	// If the key stored in VX isn't pressed
 						_pc += 2;
 					break;
+				default:
+					nop();
+					break;
 			}
 		}
 		
@@ -698,6 +761,19 @@
 				case 0x07:	// Sets VX to the value of the delay timer
 					V[(_opcode & 0x0F00) >> 8] = _delayTimer;
 					break;
+				case 0x0A: // A key press is awaited, and then stored in VX
+					var pressed : Boolean;
+					for(i = 0; i < _key.length; i++)
+					{
+						if(_key[i])
+						{
+							V[(_opcode & 0x0F00) >> 8] = i;
+							pressed = true;
+						}
+					}
+					if(!pressed)	// If no input was detected move pointer back and try command again
+						_pc -= 2;
+					break;
 				case 0x15:	// Sets the delay timer to VX
 					_delayTimer = V[(_opcode & 0x0F00) >> 8];
 					break;
@@ -706,21 +782,36 @@
 					break;
 				case 0x1E:	// Add VX to I
 					I += V[(_opcode & 0x0F00) >> 8];
-					I %= 256;
+					output = "add V" + ((_opcode & 0x0F00) >> 8) + " to I = " + I.toString(16);
+					break;
+				case 0x29:	// Sets I to the location of the sprite for the character in VX
+					I = V[(_opcode & 0x0F00) >> 8] * 0x5;
+					break;
+				case 0x33:	// Stores the Binary-coded decimal representation of VX at the addresses I, I plus 1, and I plus 2
+					_memory[ I ]		= V[(_opcode & 0x0F00) >> 8] / 100;
+					_memory[ I + 1 ]	= (V[(_opcode & 0x0F00) >> 8] / 10) % 10;
+					_memory[ I + 2]		= (V[(_opcode & 0x0F00) >> 8] / 100) % 10;
 					break;
 				case 0x55:	// Copies V0 to VX to memory starting at adress I
 					for(i = 0; i < (_opcode & 0x0F00) >> 8; i++)
 					{
 						_memory[I + i] = V[i];
 					}
+					// On the original interpreter, when the operation is done, I = I + X + 1.
+					I += ((_opcode & 0x0F00) >> 8) + 1;
+					I %= 256;
 					break;
 				case 0x65:	// Fills V0 to VX with values from memory starting at address I
 					for(i = 0; i < (_opcode & 0x0F00) >> 8; i++)
 					{
 						V[i] = _memory[I + i];
 					}
+					// On the original interpreter, when the operation is done, I = I + X + 1.
+					I += ((_opcode & 0x0F00) >> 8) + 1;
+					I %= 256;
 					break;
 				default:
+					nop();
 					break;
 			}
 		}
