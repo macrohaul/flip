@@ -10,7 +10,7 @@
 	
 	public class Flip extends Bitmap
 	{
-		[Embed(source="../assets/PONG",mimeType="application/octet-stream")]
+		[Embed(source="../assets/BREAKOUT",mimeType="application/octet-stream")]
 		public static var DEFAULT_APP : Class;
 		
 		/**
@@ -20,7 +20,7 @@
 		private var _drawFlag : Boolean;
 		
 		private var _timer : Timer;
-		private const FRAME_RATE : uint	= 60;
+		private const FRAME_RATE : uint	= 30;
 		private var _period : Number = 1000 / FRAME_RATE;
 		private var _beforeTime : int;
 		private var _afterTime : int;
@@ -28,6 +28,8 @@
 		private var _sleepTime : uint;
 		private var _overSleepTime : uint;
 		private var _excess : uint;
+		
+		private var _curCycle : uint;
 		
 		/////////////////////////////////////////////////////////////////////// Machine related variables
 		
@@ -72,6 +74,32 @@
 		*	Screen memory
 		*/
 		private var _vram : Vector.<Boolean>;
+		/**
+		*	Stores key presses
+		*/
+		private var _key : Vector.<Boolean>;
+		/**
+		*	Font table for the Chip-8 fontset
+		*/
+		private const _fontset : Array =
+		[
+			0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
+			0x20, 0x60, 0x20, 0x20, 0x70, // 1
+			0xF0, 0x10, 0xF0, 0x80, 0xF0, // 2
+			0xF0, 0x10, 0xF0, 0x10, 0xF0, // 3
+			0x90, 0x90, 0xF0, 0x10, 0x10, // 4
+			0xF0, 0x80, 0xF0, 0x10, 0xF0, // 5
+			0xF0, 0x80, 0xF0, 0x90, 0xF0, // 6
+			0xF0, 0x10, 0x20, 0x40, 0x40, // 7
+			0xF0, 0x90, 0xF0, 0x90, 0xF0, // 8
+			0xF0, 0x90, 0xF0, 0x10, 0xF0, // 9
+			0xF0, 0x90, 0xF0, 0x90, 0x90, // A
+			0xE0, 0x90, 0xE0, 0x90, 0xE0, // B
+			0xF0, 0x80, 0x80, 0x80, 0xF0, // C
+			0xE0, 0x90, 0x90, 0x90, 0xE0, // D
+			0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
+			0xF0, 0x80, 0xF0, 0x80, 0x80  // F
+		];
 		
 		/**
 		*	Constructor
@@ -89,6 +117,7 @@
 			V = new Vector.<uint>(16,true);
 			_stack = new Vector.<uint>(16,true);
 			_vram = new Vector.<Boolean>(2048,true);
+			_key = new Vector.<Boolean>(16,true);
 			
 			super(_buffer);
 		}
@@ -99,6 +128,8 @@
 		private function init () : void
 		{
 			_drawFlag = false;
+			_curCycle = 0;
+			
 			_pc		= 0x200;	// Program counter begins at 0x200
 			_opcode	= 0			// reset opcode
 			I		= 0;		// reset register index
@@ -109,6 +140,13 @@
 			V.forEach( setZero );
 			_stack.forEach( setZero );
 			_vram.forEach( setFalse );
+			_key.forEach( setFalse );
+			
+			// Load fontset
+			for(var i:uint = 0; i < 80; i++)
+			{
+				_memory[i] = _fontset[i];
+			}
 			
 			_buffer.fillRect(_buffer.rect, 0xFF000000);
 		}
@@ -151,6 +189,8 @@
 		*/
 		private function cycle () : void
 		{
+			_curCycle++;
+			
 			// Fetch opcode
 			_opcode = _memory[ _pc ] << 8 | _memory[ _pc + 1 ];
 			_pc += 2;
@@ -195,6 +235,24 @@
 		{
 			_timer.removeEventListener(TimerEvent.TIMER, update);
 			_timer.stop();
+		}
+		
+		/**
+		*	Sets the pressed key to true
+		*/
+		public function pressKey ( keyCode : uint ) : void
+		{
+			if(keyCode < 16)
+				_key[keyCode] = true;
+		}
+		
+		/**
+		*	Sets the pressed key to false
+		*/
+		public function releaseKey ( keyCode : uint ) : void
+		{
+			if(keyCode < 16)
+				_key[keyCode] = false;
 		}
 		
 		/**
@@ -301,8 +359,7 @@
 		*/
 		private function cpuReturnSub () : void
 		{
-			_sp--;
-			_pc = _stack[ _sp ];	// Set program counter back to saved position
+			_pc = _stack[ _sp - 1 ];	// Set program counter back to saved position
 		}
 		
 		/**
@@ -322,6 +379,8 @@
 		{
 			_stack[ _sp ] = _pc;	// Save current program counter
 			_sp++;					// Increase so we don't overwrite the stack
+			_sp %= 16;
+			trace(_sp);
 			_pc = _opcode & 0x0FFF;	// Set the program counter to subroutine adress
 		}
 		
