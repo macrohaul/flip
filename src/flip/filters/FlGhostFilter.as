@@ -4,28 +4,38 @@
 	
 	public class FlGhostFilter implements IFlFilter
 	{
-		private var _amount : Number = .8;
+		private var _amount : Number;
 		
-		public function FlGhostFilter ()
+		public function FlGhostFilter ( amount : Number = .8 )
 		{
-			
+			_amount = amount;
 		}
 		
 		public function render ( screen : BitmapData, buffer : BitmapData ) : void
 		{
-			var ca:uint, cb:uint;
+			var ca:uint, cb:uint, ra:uint, rb:uint, ga:uint, gb:uint, ba:uint, bb:uint;
 			
 			for(var y:uint = 0; y < screen.height; y++)
 			{
 				for(var x:uint = 0; x < screen.width; x++)
 				{
-					ca = screen.getPixel(x,y) & 0xFF;
+					ca = screen.getPixel(x,y);
+					cb = buffer.getPixel(x,y);
 					
-					cb = buffer.getPixel(x,y) & 0xFF;
+					ra = ca >> 16;
+					rb = cb >> 16;
 					
-					ca = Math.min( ca + (cb * _amount), 255 );
+					ga = (ca & 0xFF00) >> 8;
+					gb = (cb & 0xFF00) >> 8;
 					
-					screen.setPixel(x,y, (ca << 16) | (ca << 8) | ca);
+					ba = ca & 0xFF;
+					bb = cb & 0xFF;
+					
+					ra = Math.min( ra + (rb * _amount), 255 );
+					ga = Math.min( ga + (gb * _amount), 255 );
+					ba = Math.min( ba + (bb * _amount), 255 );
+					
+					screen.setPixel(x,y, (ra << 16) | (ga << 8) | ba);
 				}
 			}
 		}

@@ -12,11 +12,11 @@
 	
 	public class Flip extends Bitmap
 	{
-		[Embed(source="../assets/BLITZ",mimeType="application/octet-stream")]
+		[Embed(source="../assets/INVADERS",mimeType="application/octet-stream")]
 		public static var DEFAULT_APP : Class;
 		
-		public static const BG_COLOR : int = 0xFF102010;
-		public static const FG_COLOR : int = 0xFFDFFFDF;
+		public static const BG_COLOR : int = 0xFF0F380F;
+		public static const FG_COLOR : int = 0xFF9BBC0F;
 		
 		public static const KEY_0 : uint = 0;
 		public static const KEY_1 : uint = 1;
@@ -69,6 +69,10 @@
 		
 		/////////////////////////////////////////////////////////////////////// Machine related variables
 		
+		/**
+		*	Machine speed, i.e. machine runs at SPEED x normal operation
+		*/
+		public var speed : uint = 1;
 		/**
 		*	Current opcode
 		*/
@@ -199,7 +203,10 @@
 			_beforeTime = getTimer();
 			_overSleepTime = (_beforeTime - _afterTime) - _sleepTime;
 			
-			cycle();
+			for(var i:uint = 0; i < speed; i++)
+			{
+				cycle();
+			}
 			if(_drawFlag)
 				draw();
 			
@@ -245,11 +252,8 @@
 			if(_soundTimer > 0)
 				_soundTimer--;
 				
-			if(_drawFlag)
-				draw();
-				
-			V.forEach( bytify );
-			_memory.forEach( bytify );
+			/*V.forEach( bytify );
+			_memory.forEach( bytify );*/
 		}
 		
 		/**
@@ -297,6 +301,9 @@
 		public function step () : void
 		{
 			cycle();
+			
+			if(_drawFlag)
+				draw();
 		}
 		
 		/**
@@ -452,6 +459,7 @@
 		{
 			_sp--;
 			_pc = _stack[ _sp ];	// Set program counter back to saved position
+			output = "return from sub to " + _pc.toString(16);
 		}
 		
 		/**
@@ -498,6 +506,7 @@
 		{
 			if( V[ (_opcode & 0x0F00) >> 8 ] != (_opcode & 0x00FF) )
 				_pc += 2;
+			output = "skip if V"+((_opcode & 0x0F00) >> 8).toString(16)+" neq " + (_opcode & 0x00FF).toString(16) + " = " + ( V[ (_opcode & 0x0F00) >> 8 ] != (_opcode & 0x00FF) );
 		}
 		
 		/**
@@ -508,6 +517,7 @@
 		{
 			if( V[ (_opcode & 0x0F00) >> 8 ] == V[ (_opcode & 0x00F0) >> 4 ] )
 				_pc += 2;
+			output = "skip if V"+((_opcode & 0x0F00) >> 8).toString(16)+" eq V" + ((_opcode & 0x00F0) >> 4).toString(16) + " = " + ( V[ (_opcode & 0x0F00) >> 8 ] == V[ (_opcode & 0x00F0) >> 4 ] );
 		}
 		
 		/**
@@ -518,7 +528,7 @@
 		{
 			V[ (_opcode & 0x0F00) >> 8 ] = _opcode & 0x00FF;
 			
-			output = "set V" + ((_opcode & 0x0F00) >> 8).toString(16) + " = " + V[ (_opcode & 0x0F00) >> 8 ].toString(16);
+			output = "set V" + ((_opcode & 0x0F00) >> 8).toString(16) + " = " + V[ (_opcode & 0x0F00) >> 8 ];
 		}
 		
 		/**
@@ -528,7 +538,9 @@
 		private function cpuAddReg () : void
 		{
 			V[ (_opcode & 0x0F00) >> 8 ] += _opcode & 0x00FF;
-			output = "add " + (_opcode & 0x00FF).toString(16) + " to V"+ ((_opcode & 0x0F00) >> 8) +" = " + V[ (_opcode & 0x0F00) >> 8 ].toString(16);
+			V[ (_opcode & 0x0F00) >> 8 ] %= 256;
+			
+			output = "add " + (_opcode & 0x00FF).toString(16) + " to V"+ ((_opcode & 0x0F00) >> 8).toString(16) +" = " + V[ (_opcode & 0x0F00) >> 8 ];
 			//V[ (_opcode & 0x0F00) >> 8 ] %= 256;	// To keep it true to the byte yo
 		}
 		
@@ -539,6 +551,7 @@
 		private function cpuSwitchReg () : void
 		{
 			V[(_opcode & 0x0F00) >> 8] = V[(_opcode & 0x00F0) >> 4];
+			output = "set V" + ((_opcode & 0x0F00) >> 8).toString(16) + " = V" + ((_opcode & 0x00F0) >> 4).toString(16) + " = " + V[(_opcode & 0x0F00) >> 8];
 		}
 		
 		/**
@@ -548,6 +561,9 @@
 		private function cpuOrReg () : void
 		{
 			V[(_opcode & 0x0F00) >> 8] |= V[(_opcode & 0x00F0) >> 4];
+			V[(_opcode & 0x0F00) >> 8] %= 256;
+			
+			output = "set V" + ((_opcode & 0x0F00) >> 8).toString(16) + " | V" + ((_opcode & 0x00F0) >> 4).toString(16) + " = " + V[(_opcode & 0x0F00) >> 8];
 		}
 		
 		/**
@@ -557,6 +573,9 @@
 		private function cpuAndReg () : void
 		{
 			V[(_opcode & 0x0F00) >> 8] &= V[(_opcode & 0x00F0) >> 4];
+			V[(_opcode & 0x0F00) >> 8] %= 256;
+			
+			output = "set V" + ((_opcode & 0x0F00) >> 8).toString(16) + " & V" + ((_opcode & 0x00F0) >> 4).toString(16) + " = " + V[(_opcode & 0x0F00) >> 8];
 		}
 		
 		/**
@@ -566,11 +585,14 @@
 		private function cpuXorReg () : void
 		{
 			V[(_opcode & 0x0F00) >> 8] ^= V[(_opcode & 0x00F0) >> 4];
+			V[(_opcode & 0x0F00) >> 8] %= 256;
+			
+			output = "set V" + ((_opcode & 0x0F00) >> 8).toString(16) + " ^ V" + ((_opcode & 0x00F0) >> 4).toString(16) + " = " + V[(_opcode & 0x0F00) >> 8];
 		}
 		
 		/**
 		*	0x8XY4
-		*	Adds VX to VY. If the result is above 256, VF is set to 1, otherwise 0
+		*	Adds VY to VX. If the result is above 256, VF is set to 1, otherwise 0
 		*/
 		private function cpuAddRegCarry () : void
 		{
@@ -590,6 +612,9 @@
 				V[0xF] = 0;		
 			}
 			V[(_opcode & 0x0F00) >> 8] += V[(_opcode & 0x00F0) >> 4];
+			V[(_opcode & 0x0F00) >> 8] %= 256;
+			
+			output = "V" + ((_opcode & 0x0F00) >> 8).toString(16) + " += V" + ((_opcode & 0x00F0) >> 4).toString(16) + " = " + V[(_opcode & 0x0F00) >> 8] + " : VF=" + V[0xF]; 
 			//V[(_opcode & 0x0F00) >> 8] %= 256;
 		}
 		
@@ -615,6 +640,9 @@
 				V[0xF] = 1;		
 			}
 			V[(_opcode & 0x0F00) >> 8] -= V[(_opcode & 0x00F0) >> 4];
+			V[(_opcode & 0x0F00) >> 8] %= 256;
+			
+			output = "V" + ((_opcode & 0x0F00) >> 8).toString(16) + " -= V" + ((_opcode & 0x00F0) >> 4).toString(16) + " = " + V[(_opcode & 0x0F00) >> 8] + " : VF=" + V[0xF];
 		}
 		
 		/**
@@ -625,6 +653,8 @@
 		{
 			V[0xF] = V[(_opcode & 0x0F00) >> 8] & 0x1;
 			V[(_opcode & 0x0F00) >> 8] = V[(_opcode & 0x0F00) >> 8] >> 1;
+			
+			output = "shift V" + ((_opcode & 0x0F00) >> 8).toString(16) + " = " + V[(_opcode & 0x0F00) >> 8] + " : VF=" + V[0xF];
 		}
 		
 		/**
@@ -682,6 +712,7 @@
 		private function cpuJumpReg () : void
 		{
 			_pc = (_opcode & 0x0FFF) + V[0];
+			output = "jump to " + (_opcode & 0x0FFF).toString(16) + " + V0 = " + _pc.toString(16);
 		}
 		
 		/**
@@ -781,34 +812,44 @@
 					_soundTimer = V[(_opcode & 0x0F00) >> 8];
 					break;
 				case 0x1E:	// Add VX to I
+					if(I + V[(_opcode & 0x0F00) >> 8] > 0xFFF)	// VF is set to 1 when range overflow (I+VX>0xFFF), and 0 when there isn't.
+					{
+						V[0xF] = 1;
+					}
+					else
+					{
+						V[0xF] = 0;
+					}
 					I += V[(_opcode & 0x0F00) >> 8];
-					output = "add V" + ((_opcode & 0x0F00) >> 8) + " to I = " + I.toString(16);
+					I %= 0xFFF;
+					output = "add V" + ((_opcode & 0x0F00) >> 8) + " to I = " + I.toString(16) + " : VF=" + V[0xF];
 					break;
 				case 0x29:	// Sets I to the location of the sprite for the character in VX
 					I = V[(_opcode & 0x0F00) >> 8] * 0x5;
+					I %= 0xFFF;
 					break;
 				case 0x33:	// Stores the Binary-coded decimal representation of VX at the addresses I, I plus 1, and I plus 2
 					_memory[ I ]		= V[(_opcode & 0x0F00) >> 8] / 100;
 					_memory[ I + 1 ]	= (V[(_opcode & 0x0F00) >> 8] / 10) % 10;
-					_memory[ I + 2]		= (V[(_opcode & 0x0F00) >> 8] / 100) % 10;
+					_memory[ I + 2 ]	= (V[(_opcode & 0x0F00) >> 8] % 100) % 10;
 					break;
 				case 0x55:	// Copies V0 to VX to memory starting at adress I
-					for(i = 0; i < (_opcode & 0x0F00) >> 8; i++)
+					for(i = 0; i <= (_opcode & 0x0F00) >> 8; i++)
 					{
 						_memory[I + i] = V[i];
 					}
 					// On the original interpreter, when the operation is done, I = I + X + 1.
 					I += ((_opcode & 0x0F00) >> 8) + 1;
-					I %= 256;
+					I %= 0xFFF;
 					break;
 				case 0x65:	// Fills V0 to VX with values from memory starting at address I
-					for(i = 0; i < (_opcode & 0x0F00) >> 8; i++)
+					for(i = 0; i <= (_opcode & 0x0F00) >> 8; i++)
 					{
 						V[i] = _memory[I + i];
 					}
 					// On the original interpreter, when the operation is done, I = I + X + 1.
 					I += ((_opcode & 0x0F00) >> 8) + 1;
-					I %= 256;
+					I %= 0xFFF;
 					break;
 				default:
 					nop();
