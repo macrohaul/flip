@@ -310,6 +310,8 @@
 		*/
 		private function draw () : void
 		{
+			_screen.lock();
+			
 			var i:uint;
 			// Copy this screen to back buffer
 			_buffer.copyPixels(_screen,_screen.rect,new Point(0,0));
@@ -330,6 +332,7 @@
 				_filters[i].render(_screen,_buffer);
 			}
 			
+			_screen.unlock();
 			_drawFlag = false;
 		}
 		

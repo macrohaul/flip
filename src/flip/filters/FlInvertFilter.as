@@ -18,8 +18,8 @@
 				for(var x:uint = 0; x < screen.width; x++)
 				{
 					c = screen.getPixel(x,y);
-					c = (c & 0x0000FF == 0xFF) ? 0 : 0xFFFFFF;
-					screen.setPixel(x,y,c);
+					c = 0xFF - (c & 0xFF);
+					screen.setPixel(x,y,(c << 16) | (c << 8) | c);
 				}
 			}
 		}
