@@ -10,8 +10,25 @@
 	
 	public class Flip extends Bitmap
 	{
-		[Embed(source="../assets/PONG",mimeType="application/octet-stream")]
+		[Embed(source="../assets/BREAKOUT",mimeType="application/octet-stream")]
 		public static var DEFAULT_APP : Class;
+		
+		public static const KEY_0 : uint = 0;
+		public static const KEY_1 : uint = 1;
+		public static const KEY_2 : uint = 2;
+		public static const KEY_3 : uint = 3;
+		public static const KEY_4 : uint = 4;
+		public static const KEY_5 : uint = 5;
+		public static const KEY_6 : uint = 6;
+		public static const KEY_7 : uint = 7;
+		public static const KEY_8 : uint = 8;
+		public static const KEY_9 : uint = 9;
+		public static const KEY_A : uint = 10;
+		public static const KEY_B : uint = 11;
+		public static const KEY_C : uint = 12;
+		public static const KEY_D : uint = 13;
+		public static const KEY_E : uint = 14;
+		public static const KEY_F : uint = 15;
 		
 		/**
 		*	Screen buffer
@@ -595,7 +612,7 @@
 				p = _memory[ I + yl ];	// Fetch the first row of the sprite
 				for(var xl:uint = 0; xl < 8; xl++)
 				{
-					if(x <= 64 && y <= 32)	// Ugly bug fix for now
+					if(x + xl < 64 && y + yl < 32)	// Ugly bug fix for now
 					{
 						if( (p & (0x80 >> xl)) != 0)	// If this pixel is set to 1
 						{
@@ -635,6 +652,7 @@
 		*/
 		private function cpuMisc () : void
 		{
+			var i:uint;
 			switch( _opcode & 0x00FF )
 			{
 				case 0x07:	// Sets VX to the value of the delay timer
@@ -651,13 +669,13 @@
 					I %= 256;
 					break;
 				case 0x55:	// Copies V0 to VX to memory starting at adress I
-					for(var i:uint = 0; i < (_opcode & 0x0F00) >> 8; i++)
+					for(i = 0; i < (_opcode & 0x0F00) >> 8; i++)
 					{
 						_memory[I + i] = V[i];
 					}
 					break;
 				case 0x65:	// Fills V0 to VX with values from memory starting at address I
-					for(var i:uint = 0; i < (_opcode & 0x0F00) >> 8; i++)
+					for(i = 0; i < (_opcode & 0x0F00) >> 8; i++)
 					{
 						V[i] = _memory[I + i];
 					}
