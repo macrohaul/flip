@@ -616,11 +616,11 @@
 			{
 				case 0x9E:
 					if( _key[ V[(_opcode & 0x0F00) >> 8] ] )	// If the key stored in VX is pressed
-						_cp += 2;
+						_pc += 2;
 					break;
 				case 0xA1:
 					if( !_key[ V[(_opcode & 0x0F00) >> 8] ] )	// If the key stored in VX isn't pressed
-						_cp += 2;
+						_pc += 2;
 					break;
 			}
 		}
@@ -646,7 +646,6 @@
 					I += V[(_opcode & 0x0F00) >> 8];
 					I %= 256;
 					break;
-				case 
 				default:
 					break;
 			}
