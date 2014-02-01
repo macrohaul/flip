@@ -122,7 +122,8 @@
 			_overSleepTime = (_beforeTime - _afterTime) - _sleepTime;
 			
 			cycle();
-			//draw
+			if(_drawFlag)
+				draw();
 			
 			_afterTime = getTimer();
 			_timeDiff = _afterTime - _beforeTime;
@@ -197,6 +198,22 @@
 		{
 			_timer.removeEventListener(TimerEvent.TIMER, update);
 			_timer.stop();
+		}
+		
+		/**
+		*	Draws the VRAM to the buffer
+		*/
+		private function draw () : void
+		{
+			// Clear buffer
+			_buffer.fillRect(_buffer.rect,0xFF000000);
+			for(var i:uint = 0; i < _vram.length; i++)
+			{
+				if(_vram[i])
+					_buffer.setPixel(i % 64, i / 64, 0xFFFFFFFF);
+					
+			}
+			_drawFlag = false;
 		}
 		
 		/**
@@ -404,11 +421,11 @@
 				p = _memory[ I + yl ];	// Fetch the first row of the sprite
 				for(var xl:uint = 0; xl < 8; xl++)
 				{
-					if( (pixel & (0x80 >> xl)) != 0)	// If this pixel is set to 1
+					if( (p & (0x80 >> xl)) != 0)	// If this pixel is set to 1
 					{
-						if( _vram[ (x + xl) + ((y + yl) * 64) ] == 1 )	// Collission detection
+						if( _vram[ (x + xl) + ((y + yl) * 64) ] == 1 )	// Collision detection
 							V[0xF] = 1;
-						_vram[ (x + xl) + ((y + yl) * 64) ] ^= 1;	// Flip the pixel
+						_vram[ (x + xl) + ((y + yl) * 64) ] != _vram[ (x + xl) + ((y + yl) * 64) ];	// Flip the pixel
 					}
 				}
 			}
