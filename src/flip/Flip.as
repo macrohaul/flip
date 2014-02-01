@@ -20,7 +20,7 @@
 		private var _drawFlag : Boolean;
 		
 		private var _timer : Timer;
-		private const FRAME_RATE : uint	= 30;
+		private const FRAME_RATE : uint	= 60;
 		private var _period : Number = 1000 / FRAME_RATE;
 		private var _beforeTime : int;
 		private var _afterTime : int;
@@ -182,6 +182,8 @@
 				cycle();
 				_excess -= _period;
 			}
+			
+			trace(_key);
 		}
 		
 		/**
@@ -386,7 +388,6 @@
 			_stack[ _sp ] = _pc;	// Save current program counter
 			_sp++;					// Increase so we don't overwrite the stack
 			_sp %= 16;
-			trace(_sp);
 			_pc = _opcode & 0x0FFF;	// Set the program counter to subroutine adress
 		}
 		
@@ -583,8 +584,8 @@
 		*/
 		private function cpuDrawSprite () : void
 		{
-			var x : uint = V[(_opcode & 0x0F00) >> 8];
-			var y : uint = V[(_opcode & 0x00F0) >> 4];
+			var x : uint = V[(_opcode & 0x0F00) >> 8] % 256;
+			var y : uint = V[(_opcode & 0x00F0) >> 4] % 256;
 			var h : uint = _opcode & 0x000F;
 			var p : uint;
 			
@@ -594,11 +595,14 @@
 				p = _memory[ I + yl ];	// Fetch the first row of the sprite
 				for(var xl:uint = 0; xl < 8; xl++)
 				{
-					if( (p & (0x80 >> xl)) != 0)	// If this pixel is set to 1
+					if(x <= 64 && y <= 32)	// Ugly bug fix for now
 					{
-						if( _vram[ (x + xl) + ((y + yl) * 64) ] == 1 )	// Collision detection
-							V[0xF] = 1;
-						_vram[ (x + xl) + ((y + yl) * 64) ] = !_vram[ (x + xl) + ((y + yl) * 64) ];	// Flip the pixel
+						if( (p & (0x80 >> xl)) != 0)	// If this pixel is set to 1
+						{
+							if( _vram[ (x + xl) + ((y + yl) * 64) ] == 1 )	// Collision detection
+								V[0xF] = 1;
+							_vram[ (x + xl) + ((y + yl) * 64) ] = !_vram[ (x + xl) + ((y + yl) * 64) ];	// Flip the pixel
+						}
 					}
 				}
 			}
