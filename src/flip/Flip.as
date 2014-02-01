@@ -53,7 +53,7 @@
 		private var _filters : Vector.<IFlFilter>;
 		
 		/**
-		*	Used to keep the machine running at 60Hz
+		*	Used to keep the machine running at a constant speed
 		*/
 		private var _timer : Timer;
 		private const FRAME_RATE : uint	= 60;
@@ -146,8 +146,6 @@
 		*/
 		public function Flip ()
 		{
-			var i:uint;
-			
 			_timer = new Timer(_period,1);
 			
 			_screen = new BitmapData(64,32,false,BG_COLOR);
@@ -173,7 +171,7 @@
 			
 			_pc		= 0x200;	// Program counter begins at 0x200
 			_opcode	= 0			// reset opcode
-			I		= 0x200;		// reset register index
+			I		= 0;		// reset register index
 			_sp		= 0;		// reset stack pointer
 			
 			// Reset all machine memory
@@ -192,7 +190,7 @@
 			}
 			
 			_buffer.fillRect(_buffer.rect, BG_COLOR);
-			_screen.fillRect(_buffer.rect, BG_COLOR);
+			_screen.fillRect(_screen.rect, BG_COLOR);
 		}
 		
 		/**
@@ -259,28 +257,27 @@
 		/**
 		*	Loads a Chip-8 program into memory
 		*/
-		public function load ( program:Class, autoPlay : Boolean = true ) : void
+		public function load ( program:ByteArray, autoPlay : Boolean = true ) : void
 		{
 			init();
 			
-			var data : ByteArray = new program();
-			data.position = 0;
+			program.position = 0;
 			
 			// Copy program to memory
-			while(data.bytesAvailable)
+			while(program.bytesAvailable)
 			{
-				_memory[ data.position + 512 ] = data.readUnsignedByte();	// Programs begin at 0x200 (512)
+				_memory[ program.position + 512 ] = program.readUnsignedByte();	// Programs begin at 0x200 (512)
 			}
 			
 			// Run the program
 			if(autoPlay)
-				start();
+				run();
 		}
 		
 		/**
 		*	Starts the emulator
 		*/
-		public function start () : void
+		public function run () : void
 		{
 			_timer.addEventListener(TimerEvent.TIMER, update);
 			_timer.start();
@@ -289,7 +286,7 @@
 		/**
 		*	Stops the emulator
 		*/
-		public function stop () : void
+		public function halt () : void
 		{
 			_timer.removeEventListener(TimerEvent.TIMER, update);
 			_timer.stop();
